@@ -24,3 +24,58 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* DayPicker Overrides */
+.rdp-root {
+  --rdp-accent-color: #E5C158;
+  --rdp-accent-color-foreground: #000000;
+  --rdp-range_middle-background-color: rgba(229, 193, 88, 0.1);
+  --rdp-range_middle-color: inherit;
+  margin: 0;
+}
+
+.rdp-day_button {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+  font-size: 12px !important;
+}
+
+.rdp-day_button:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.rdp-selected .rdp-day_button {
+  background-color: var(--rdp-accent-color) !important;
+  color: var(--rdp-accent-color-foreground) !important;
+  font-weight: bold !important;
+}
+
+.rdp-chevron {
+  fill: #71717a !important;
+}
+
+.rdp-caption_label {
+  font-family: serif;
+  font-size: 14px !important;
+}
+
+.rdp-head_cell {
+  color: #C5A059 !important;
+  font-size: 10px !important;
+  font-weight: bold !important;
+  text-transform: uppercase !important;
+}
+
+.rdp-nav_button {
+  border: 1px solid #27272a !important;
+  border-radius: 50% !important;
+  width: 32px !important;
+  height: 32px !important;
+}
+
+.rdp-nav, .rdp-nav_button {
+  display: none !important;
+}
+
+
