@@ -188,9 +188,7 @@ export default function JournalPage() {
               <div>
                 <p className="text-white font-bold mb-3 uppercase tracking-widest">JADWAL OPERASI</p>
                 <p className="text-zinc-500 leading-relaxed">
-                  Senin - Jumat: 09.00 - 21.00<br />
-                  Sabtu: 10.00 - 20.00<br />
-                  Minggu: TUTUP
+                  Senin - Minggu: 09.00 - 20.00
                 </p>
               </div>
               <div>
@@ -212,11 +210,6 @@ export default function JournalPage() {
 
           <div className="mt-16 md:mt-24 border-t border-[#C5A059]/10 pt-6 flex flex-col md:flex-row md:justify-between gap-4 text-[10px] text-zinc-600 uppercase tracking-wider">
             <p>© 2024 THE ATELIER. All rights reserved.</p>
-            <div className="flex gap-4">
-              <a href="#" className="hover:text-[#C5A059] transition-colors">TERMS OF SERVICE</a>
-              <span>|</span>
-              <a href="#" className="hover:text-[#C5A059] transition-colors">PRIVACY</a>
-            </div>
           </div>
         </div>
       </section>

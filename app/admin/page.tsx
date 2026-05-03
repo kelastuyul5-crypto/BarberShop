@@ -149,6 +149,29 @@ function BarbersTab() {
     return { type: "free" as const, data: null };
   };
 
+  const isTimePassed = (timeStr: string) => {
+    const now = new Date();
+    const todayStr = format(now, "yyyy-MM-dd");
+    
+    if (selectedCalDate < todayStr) return true;
+    if (selectedCalDate > todayStr) return false;
+    
+    const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!timeMatch) return false;
+    
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = parseInt(timeMatch[2], 10);
+    const ampm = timeMatch[3].toUpperCase();
+    
+    if (ampm === "PM" && hours < 12) hours += 12;
+    if (ampm === "AM" && hours === 12) hours = 0;
+    
+    const selectedTimeMins = hours * 60 + minutes;
+    const currentTimeMins = now.getHours() * 60 + now.getMinutes();
+    
+    return selectedTimeMins <= currentTimeMins;
+  };
+
   const canGoNextMonth = isBefore(startOfMonth(addMonths(calMonth, 1)), startOfMonth(addMonths(today, 2)));
 
 
@@ -277,15 +300,33 @@ function BarbersTab() {
                         <div className="grid grid-cols-3 gap-1.5 overflow-y-auto">
                           {TIME_SLOTS.map(time => {
                             const status = getSlotStatus(time);
+                            const passed = isTimePassed(time);
+                            
                             return (
-                              <div key={time} className={`rounded-lg p-2.5 border text-center transition-all ${status.type === "booked" ? "bg-blue-500/5 border-blue-500/20" : status.type === "blocked" ? "bg-red-500/5 border-red-500/20" : "bg-[#0A0A0A] border-zinc-800 hover:border-zinc-600"}`}>
-                                <p className={`text-xs font-mono font-bold mb-1.5 ${status.type === "booked" ? "text-blue-300" : status.type === "blocked" ? "text-red-400" : "text-white"}`}>{time}</p>
-                                {status.type === "booked" && <p className="text-[9px] text-blue-400 truncate">{status.data?.user?.full_name || "Booked"}</p>}
-                                {status.type === "blocked" && (
-                                  <button onClick={() => handleUnblockSlot(b.id, status.data.id)} className="text-[9px] text-green-500 hover:text-green-400 font-bold tracking-wider">BUKA</button>
-                                )}
-                                {status.type === "free" && (
-                                  <button onClick={() => handleBlockSlot(b.id, time)} className="text-[9px] text-zinc-500 hover:text-red-400 font-bold tracking-wider w-full">BLOKIR</button>
+                              <div key={time} className={`rounded-lg p-2.5 border text-center transition-all 
+                                ${passed ? "bg-zinc-900/50 border-zinc-800/50 opacity-50 cursor-not-allowed" : 
+                                  status.type === "booked" ? "bg-blue-500/5 border-blue-500/20" : 
+                                  status.type === "blocked" ? "bg-red-500/5 border-red-500/20" : 
+                                  "bg-[#0A0A0A] border-zinc-800 hover:border-zinc-600"}`}>
+                                <p className={`text-xs font-mono font-bold mb-1.5 
+                                  ${passed ? "text-zinc-500" : 
+                                    status.type === "booked" ? "text-blue-300" : 
+                                    status.type === "blocked" ? "text-red-400" : "text-white"}`}>
+                                  {time}
+                                </p>
+                                
+                                {passed ? (
+                                  <p className="text-[9px] text-zinc-600 tracking-wider font-bold">LEWAT</p>
+                                ) : (
+                                  <>
+                                    {status.type === "booked" && <p className="text-[9px] text-blue-400 truncate">{status.data?.user?.full_name || "Booked"}</p>}
+                                    {status.type === "blocked" && (
+                                      <button onClick={() => handleUnblockSlot(b.id, status.data.id)} className="text-[9px] text-green-500 hover:text-green-400 font-bold tracking-wider">BUKA</button>
+                                    )}
+                                    {status.type === "free" && (
+                                      <button onClick={() => handleBlockSlot(b.id, time)} className="text-[9px] text-zinc-500 hover:text-red-400 font-bold tracking-wider w-full">BLOKIR</button>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             );
@@ -492,7 +533,9 @@ function SettingsTab() {
         <p className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] uppercase mb-4">TAMBAH TANGGAL LIBUR</p>
         <div className="flex flex-col md:flex-row gap-3">
           <input type="date" value={form.closed_date} onChange={e => setForm(p => ({ ...p, closed_date: e.target.value }))}
-            className="flex-1 bg-[#0A0A0A] border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-[#C5A059]/50 transition-all" />
+            onClick={(e) => { if ('showPicker' in e.currentTarget) { try { e.currentTarget.showPicker(); } catch(err) {} } }}
+            style={{ colorScheme: 'dark' }}
+            className="flex-1 bg-[#0A0A0A] border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-[#C5A059]/50 transition-all cursor-pointer" />
           <input type="text" value={form.reason} onChange={e => setForm(p => ({ ...p, reason: e.target.value }))} placeholder="Alasan (opsional)"
             className="flex-1 bg-[#0A0A0A] border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#C5A059]/50 transition-all" />
           <button onClick={handleAdd} className="bg-[#E5C158] text-black px-6 py-3 rounded-lg text-xs font-bold tracking-widest hover:bg-[#C5A059] transition-colors shrink-0">TAMBAH</button>
