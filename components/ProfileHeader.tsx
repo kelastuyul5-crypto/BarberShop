@@ -5,7 +5,7 @@ export default function ProfileHeader() {
   return (
     <header className="sticky top-0 z-50 bg-[#0A0A0A] border-b border-[#C5A059]/20 px-6 py-4 flex items-center">
       {/* Back Button */}
-      <Link href="/" className="text-[#C5A059] hover:opacity-80 transition-opacity z-10">
+      <Link href="/Journal" className="text-[#C5A059] hover:opacity-80 transition-opacity z-10">
         <IoArrowBack size={24} />
       </Link>
 

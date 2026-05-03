@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { LuPlus, LuMinus, LuPencil, LuLogOut } from "react-icons/lu";
+import { useState, useEffect } from "react";
+import { LuPlus, LuMinus, LuPencil, LuLogOut, LuLogIn, LuUser } from "react-icons/lu";
+import { supabase } from "@/utils/supabase";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import type { Session } from "@supabase/supabase-js";
 
 const faqData = [
   {
@@ -24,36 +28,94 @@ const faqData = [
 
 export default function ProfilePage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/Rituals");
+  };
+
+  const userName = session?.user?.user_metadata?.full_name || session?.user?.email?.split("@")[0] || "User";
+  const userEmail = session?.user?.email || "";
+  const accountId = session?.user?.id ? `HA-${session.user.id.substring(0, 8).toUpperCase()}` : "";
+
+  if (isLoading) {
+    return (
+      <div className="bg-[#0A0A0A] min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#C5A059] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-[#0A0A0A] text-white font-sans min-h-screen">
+    <div className="bg-[#0A0A0A] text-white font-sans min-h-screen pb-20">
       <div className="max-w-4xl mx-auto md:px-6">
         {/* 1. Profile Section */}
         <section className="flex flex-col items-center pt-12 pb-16 md:pt-24 md:pb-24 px-6">
           <div className="relative mb-8">
             <div className="w-40 h-40 md:w-56 md:h-56 rounded-full border-2 border-[#C5A059] p-1 overflow-hidden transition-all duration-500">
-              <div className="w-full h-full rounded-full overflow-hidden bg-zinc-800">
-                <img 
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80" 
-                  alt="Profile" 
-                  className="w-full h-full object-cover"
-                />
+              <div className="w-full h-full rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center">
+                {session ? (
+                  <img 
+                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(userName)}&backgroundColor=1a1a1a&textColor=C5A059`}
+                    alt="Profile"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  /* Guest: Empty default avatar */
+                  <LuUser className="w-16 h-16 md:w-24 md:h-24 text-zinc-600" />
+                )}
               </div>
             </div>
-            <button className="absolute bottom-2 right-2 md:bottom-4 md:right-4 w-8 h-8 md:w-10 md:h-10 bg-zinc-900 border border-zinc-700 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:border-[#C5A059] transition-all">
-              <LuPencil size={14} />
-            </button>
+            {session && (
+              <button className="absolute bottom-2 right-2 md:bottom-4 md:right-4 w-8 h-8 md:w-10 md:h-10 bg-zinc-900 border border-zinc-700 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:border-[#C5A059] transition-all">
+                <LuPencil size={14} />
+              </button>
+            )}
           </div>
 
           <div className="text-center">
-            <h1 className="text-4xl md:text-6xl font-serif text-[#C5A059] mb-2">Arthur Dent</h1>
-            <p className="text-zinc-500 text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase">
-              ACCOUNT ID: HA-2023-X99L2
-            </p>
+            {session ? (
+              <>
+                <h1 className="text-4xl md:text-6xl font-serif text-[#C5A059] mb-2">{userName}</h1>
+                <p className="text-zinc-500 text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase mb-1">
+                  ACCOUNT ID: {accountId}
+                </p>
+                <p className="text-zinc-600 text-[10px] md:text-xs">{userEmail}</p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-4xl md:text-6xl font-serif text-zinc-500 mb-4">Guest</h1>
+                <Link
+                  href="/login?redirect=/Profile"
+                  className="inline-flex items-center gap-2 bg-[#E5C158] text-black px-8 py-3 rounded-lg text-xs font-bold tracking-widest hover:bg-[#C5A059] transition-colors shadow-lg shadow-[#E5C158]/10"
+                >
+                  <LuLogIn size={16} />
+                  LOG IN NOW
+                </Link>
+              </>
+            )}
           </div>
         </section>
 
@@ -92,13 +154,18 @@ export default function ProfilePage() {
           </div>
         </section>
 
-        {/* 3. Logout Section */}
-        <section className="px-6 md:px-0 mt-12 mb-2">
-          <button className="w-full max-w-xs mx-auto py-4 bg-[#141414] border border-zinc-900 rounded-xl flex items-center justify-center gap-3 text-red-500 hover:bg-red-500/5 hover:border-red-500/30 transition-all duration-300 group">
-            <LuLogOut size={18} className="group-hover:translate-x-1 transition-transform duration-300" />
-            <span className="text-[10px] font-bold tracking-[0.2em] uppercase">LOG OUT</span>
-          </button>
-        </section>
+        {/* 3. Logout Section — Only for authenticated users */}
+        {session && (
+          <section className="px-6 md:px-0 mt-12 mb-2">
+            <button
+              onClick={handleLogout}
+              className="w-full max-w-xs mx-auto py-4 bg-[#141414] border border-zinc-900 rounded-xl flex items-center justify-center gap-3 text-red-500 hover:bg-red-500/5 hover:border-red-500/30 transition-all duration-300 group"
+            >
+              <LuLogOut size={18} className="group-hover:translate-x-1 transition-transform duration-300" />
+              <span className="text-[10px] font-bold tracking-[0.2em] uppercase">LOG OUT</span>
+            </button>
+          </section>
+        )}
       </div>
     </div>
   );

@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { RiArrowLeftSLine, RiArrowRightSLine } from "react-icons/ri";
-import { LuUpload, LuX, LuLoader } from "react-icons/lu";
+import { LuUpload, LuX, LuLoader, LuLogIn } from "react-icons/lu";
 import { DayPicker } from "react-day-picker";
 import { format, addDays, startOfToday } from "date-fns";
 import { id } from "date-fns/locale";
 import "react-day-picker/dist/style.css";
 import { getBarbers, getServices, checkAvailability, createBookingHold, submitPaymentProof, checkUserActiveBooking } from "@/app/actions/booking";
 import Link from "next/link";
+import { supabase } from "@/utils/supabase";
 
 export default function RitualsPage() {
   const [barbers, setBarbers] = useState<any[]>([]);
@@ -31,24 +32,38 @@ export default function RitualsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [hasActiveBooking, setHasActiveBooking] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [showLoginModal, setShowLoginModal] = useState(false);
 
   const today = startOfToday();
   const maxDate = addDays(today, 7);
 
-  // Fetch initial data
+  // Fetch initial data + session
   useEffect(() => {
     async function loadData() {
-      const [barbersData, servicesData, activeBooking] = await Promise.all([
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id || null;
+      setUserId(uid);
+
+      const fetchList: [Promise<any>, Promise<any>, Promise<any>?] = [
         getBarbers(),
         getServices(),
-        checkUserActiveBooking()
-      ]);
-      setBarbers(barbersData);
-      setServicesList(servicesData);
-      setHasActiveBooking(activeBooking.hasActive);
+      ];
+      if (uid) fetchList.push(checkUserActiveBooking(uid));
+
+      const results = await Promise.all(fetchList);
+      setBarbers(results[0]);
+      setServicesList(results[1]);
+      if (uid && results[2]) setHasActiveBooking(results[2].hasActive);
       setIsLoadingData(false);
     }
     loadData();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id || null);
+      if (session?.user?.id) setShowLoginModal(false);
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   // Fetch availability when date or barber changes
@@ -115,19 +130,19 @@ export default function RitualsPage() {
   const isTimeBooked = (time: string) => bookedTimes.includes(time);
 
   const timeSlotClass = (time: string) => `
-    px-5 py-2.5 rounded-lg text-xs font-medium transition-all duration-300
+    px-5 py-2.5 rounded-lg text-xs font-medium transition-all duration-300 border
     ${isTimeBooked(time) 
       ? "opacity-30 cursor-not-allowed bg-zinc-900 border-zinc-800 text-zinc-500" 
       : selectedTime === time
-        ? "bg-[#E5C158] text-black font-bold"
-        : "border border-zinc-800 text-white hover:border-zinc-600"}
+        ? "bg-[#E5C158] border-transparent text-black font-bold"
+        : "border-zinc-800 text-white hover:border-zinc-600"}
   `;
 
   const serviceClass = (serviceId: string) => `
-    px-5 py-2.5 rounded-lg text-xs font-medium transition-all duration-300
+    px-5 py-2.5 rounded-lg text-xs font-medium transition-all duration-300 border
     ${selectedServices.find(s => s.id === serviceId)
-      ? "bg-[#E5C158] text-black font-bold"
-      : "border border-zinc-800 text-white hover:border-zinc-600"}
+      ? "bg-[#E5C158] border-transparent text-black font-bold"
+      : "border-zinc-800 text-white hover:border-zinc-600"}
   `;
 
   const calculateTotal = () => {
@@ -137,6 +152,12 @@ export default function RitualsPage() {
   const handleConfirmBooking = async () => {
     if (!selectedTime || !selectedBarber || selectedServices.length === 0 || !selectedDate) {
       alert("Mohon lengkapi pilihan tanggal, barber, jam, dan minimal satu layanan terlebih dahulu.");
+      return;
+    }
+
+    // Guest gate: show login modal instead of processing
+    if (!userId) {
+      setShowLoginModal(true);
       return;
     }
 
@@ -162,7 +183,7 @@ export default function RitualsPage() {
       servicesWithPrices: selectedServices.map(s => ({ id: s.id, price: s.price }))
     };
 
-    const res = await createBookingHold(input);
+    const res = await createBookingHold(input, userId);
     if (res.success && res.bookingId) {
       setBookingId(res.bookingId);
       setExpiresAt(res.expiresAt!);
@@ -486,6 +507,46 @@ export default function RitualsPage() {
               >
                 {isUploading ? <LuLoader className="w-5 h-5 animate-spin" /> : "KIRIM KE ADMIN"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Login Required Modal */}
+      {showLoginModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowLoginModal(false)} />
+          <div className="bg-[#141414] border border-zinc-800 rounded-2xl w-full max-w-sm relative z-10 overflow-hidden shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex justify-end p-4">
+              <button onClick={() => setShowLoginModal(false)} className="text-zinc-500 hover:text-white transition-colors">
+                <LuX size={20} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="px-8 pb-8 flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-[#C5A059]/10 border border-[#C5A059]/30 flex items-center justify-center mb-6">
+                <LuLogIn className="w-7 h-7 text-[#C5A059]" />
+              </div>
+              <h3 className="text-xl font-serif text-white mb-2">Login Diperlukan</h3>
+              <p className="text-zinc-500 text-sm leading-relaxed mb-8">
+                Silakan login atau buat akun terlebih dahulu untuk mengonfirmasi booking Anda.
+              </p>
+              <div className="flex flex-col w-full gap-3">
+                <Link
+                  href="/login?redirect=/Rituals"
+                  className="w-full bg-[#E5C158] text-black py-3.5 rounded-lg text-xs font-bold tracking-widest hover:bg-[#C5A059] transition-colors text-center"
+                >
+                  LOGIN
+                </Link>
+                <Link
+                  href="/login?redirect=/Rituals&tab=register"
+                  className="w-full bg-transparent text-[#C5A059] border border-[#C5A059]/30 py-3.5 rounded-lg text-xs font-bold tracking-widest hover:bg-[#C5A059]/10 transition-colors text-center"
+                >
+                  REGISTER
+                </Link>
+              </div>
             </div>
           </div>
         </div>

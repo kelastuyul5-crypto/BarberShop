@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { LuUser, LuCalendar, LuLoader, LuUpload, LuX } from "react-icons/lu";
+import { LuUser, LuCalendar, LuLoader, LuUpload, LuX, LuLogIn } from "react-icons/lu";
 import { getBookingHistory, submitPaymentProof, cancelBooking } from "@/app/actions/booking";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
+import { supabase } from "@/utils/supabase";
+import Link from "next/link";
 
 function CountdownTimer({ expiresAt, onExpire }: { expiresAt: string, onExpire: () => void }) {
   const [timeLeft, setTimeLeft] = useState<string>("");
@@ -44,18 +46,29 @@ export default function HistoryPage() {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isCancelling, setIsCancelling] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Check auth session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserId(session?.user?.id || null);
+      setAuthLoading(false);
+    });
+  }, []);
 
   async function loadHistory() {
+    if (!userId) return;
     setIsLoading(true);
-    const res = await getBookingHistory(page, 5);
+    const res = await getBookingHistory(userId, page, 5);
     setHistory(res.data || []);
     setTotalPages(res.totalPages || 1);
     setIsLoading(false);
   }
 
   useEffect(() => {
-    loadHistory();
-  }, [page]);
+    if (!authLoading && userId) loadHistory();
+  }, [page, userId, authLoading]);
 
   const handleNext = () => {
     if (page < totalPages) setPage(p => p + 1);
@@ -122,7 +135,7 @@ export default function HistoryPage() {
     <div className="bg-[#0A0A0A] text-white font-sans min-h-screen">
       <div className="max-w-6xl mx-auto md:px-6">
         {/* 1. Header Section */}
-        <section className="px-6 md:px-0 pt-10 pb-12 md:pt-20 md:pb-12">
+        <section className="px-6 md:px-0 pt-6 pb-12 md:pt-12 md:pb-12">
           <span className="text-[#C5A059] text-[10px] font-bold tracking-[0.2em] uppercase block mb-3">
             YOUR JOURNEY
           </span>
@@ -132,7 +145,19 @@ export default function HistoryPage() {
 
         {/* 2. History List */}
         <section className="px-6 md:px-0 pb-24">
-          {isLoading ? (
+          {authLoading ? (
+            <div className="flex justify-center py-20">
+              <LuLoader className="w-8 h-8 text-[#C5A059] animate-spin" />
+            </div>
+          ) : !userId ? (
+            <div className="text-center py-20 bg-[#141414] rounded-2xl border border-zinc-900">
+              <LuLogIn className="w-10 h-10 text-zinc-600 mx-auto mb-4" />
+              <p className="text-zinc-500 mb-4">Login untuk melihat riwayat booking Anda.</p>
+              <Link href="/login?redirect=/History" className="inline-flex items-center gap-2 bg-[#E5C158] text-black px-6 py-3 rounded-lg text-xs font-bold tracking-widest hover:bg-[#C5A059] transition-colors">
+                LOGIN
+              </Link>
+            </div>
+          ) : isLoading ? (
             <div className="flex justify-center py-20">
               <LuLoader className="w-8 h-8 text-[#C5A059] animate-spin" />
             </div>

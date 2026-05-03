@@ -3,8 +3,7 @@
 import { supabase } from "@/utils/supabase";
 import { revalidatePath } from "next/cache";
 
-// UUID untuk dummy user
-const DUMMY_USER_ID = "00000000-0000-0000-0000-000000000001";
+// No more hardcoded dummy user — userId is passed from the authenticated client
 
 export async function getBarbers() {
   const { data, error } = await supabase
@@ -64,13 +63,15 @@ export async function checkAvailability(date: string, barberId: string) {
   return bookedTimes;
 }
 
-export async function checkUserActiveBooking() {
+export async function checkUserActiveBooking(userId: string) {
+  if (!userId) return { hasActive: false };
+
   const now = new Date().toISOString();
 
   const { data, error } = await supabase
     .from("bookings")
     .select("id, booking_time, booking_date, expires_at")
-    .eq("user_id", DUMMY_USER_ID)
+    .eq("user_id", userId)
     .eq("status", "awaiting_payment")
     .gt("expires_at", now)
     .limit(1);
@@ -96,9 +97,11 @@ interface CreateBookingInput {
   servicesWithPrices: { id: string; price: number }[];
 }
 
-export async function createBookingHold(input: CreateBookingInput) {
+export async function createBookingHold(input: CreateBookingInput, userId: string) {
+  if (!userId) return { success: false, error: "User belum login." };
+
   // Anti-troll: cek apakah user masih punya booking aktif yang belum dibayar
-  const activeCheck = await checkUserActiveBooking();
+  const activeCheck = await checkUserActiveBooking(userId);
   if (activeCheck.hasActive) {
     return { success: false, error: "Anda masih memiliki pesanan yang belum dibayar. Selesaikan atau batalkan terlebih dahulu." };
   }
@@ -110,7 +113,7 @@ export async function createBookingHold(input: CreateBookingInput) {
   const { data: booking, error: bookingError } = await supabase
     .from("bookings")
     .insert({
-      user_id: DUMMY_USER_ID,
+      user_id: userId,
       barber_id: input.barberId,
       booking_date: input.date,
       booking_time: input.time,
@@ -204,7 +207,7 @@ export async function checkBookingStatus(bookingId: string) {
   return data;
 }
 
-export async function getBookingHistory(page: number, limit: number = 5) {
+export async function getBookingHistory(userId: string, page: number, limit: number = 5) {
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
@@ -218,7 +221,7 @@ export async function getBookingHistory(page: number, limit: number = 5) {
         service:services(name)
       )
     `, { count: "exact" })
-    .eq("user_id", DUMMY_USER_ID)
+    .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .range(from, to);
 

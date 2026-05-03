@@ -1,8 +1,34 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { RiProfileLine } from "react-icons/ri";
+import { supabase } from "@/utils/supabase";
+import type { Session } from "@supabase/supabase-js";
 
 export default function Header() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const pathname = usePathname();
+
+  useEffect(() => {
+    // Check initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   return (
     <header className="sticky top-0 z-50 bg-[#0A0A0A] border-b border-[#C5A059]/20 px-6 py-4 flex items-center justify-between">
       {/* Left spacer */}
@@ -18,10 +44,25 @@ export default function Header() {
         </span>
       </div>
 
-      {/* Profile Pic */}
-      <div className="relative w-10 h-10 rounded-full border border-[#C5A059]/50 overflow-hidden flex items-center justify-center bg-[#1a1a1a]">
-        <RiProfileLine className="w-6 h-6 text-[#C5A059]"/>
-      </div>
+      {/* Right: Auth-dependent */}
+      {isLoading ? (
+        <div className="w-10 h-10" />
+      ) : session ? (
+        /* Authenticated: Profile Icon */
+        <Link href="/Profile">
+          <div className="relative w-10 h-10 rounded-full border border-[#C5A059]/50 overflow-hidden flex items-center justify-center bg-[#1a1a1a] hover:border-[#C5A059] transition-colors cursor-pointer">
+            <RiProfileLine className="w-6 h-6 text-[#C5A059]" />
+          </div>
+        </Link>
+      ) : (
+        /* Guest: Log In text */
+        <Link
+          href={`/login?redirect=${pathname}`}
+          className="text-[#C5A059] text-xs font-bold tracking-[0.15em] uppercase hover:text-[#E5C158] transition-colors duration-300"
+        >
+          Log In
+        </Link>
+      )}
     </header>
   );
 }
