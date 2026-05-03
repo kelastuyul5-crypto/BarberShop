@@ -13,12 +13,12 @@ const faqData = [
     answer: "Anda dapat melihat dan mengelola semua reservasi aktif maupun riwayat di halaman 'History'. Untuk pembatalan, pastikan dilakukan minimal 2 jam sebelum jadwal yang ditentukan."
   },
   {
-    question: "Apa keuntungan menjadi Member Heritage?",
-    answer: "Sebagai Member Heritage, Anda mendapatkan prioritas booking, minuman artisanal gratis di setiap ritual akhir pekan, serta poin loyalitas yang dapat ditukar dengan layanan eksklusif."
+    question: "Berapa lama batas waktu pembayaran setelah booking?",
+    answer: "Setiap booking memiliki batas waktu 15 menit untuk mengunggah bukti pembayaran. Jika lewat dari waktu tersebut, slot Anda akan otomatis dibatalkan oleh sistem untuk memberikan kesempatan bagi pelanggan lain."
   },
   {
     question: "Bisakah saya meminta barber tertentu?",
-    answer: "Tentu saja. Di halaman 'Rituals', Anda memiliki kebebasan untuk memilih master barber favorit Anda, seperti Ujang Mawang atau Julian Tompel, sebelum mengonfirmasi pesanan."
+    answer: "Tentu saja. Di halaman 'Rituals', Anda memiliki kebebasan untuk memilih master barber favorit Anda sebelum mengonfirmasi pesanan."
   },
   {
     question: "Bagaimana kebijakan pembatalan & modifikasi?",
@@ -127,11 +127,12 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
-            {session && (
+            {/* Hide edit profile picture button for now */}
+            {/* {session && (
               <button className="absolute bottom-2 right-2 md:bottom-4 md:right-4 w-8 h-8 md:w-10 md:h-10 bg-zinc-900 border border-zinc-700 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:border-[#C5A059] transition-all">
                 <LuPencil size={14} />
               </button>
-            )}
+            )} */}
           </div>
 
           <div className="text-center">
@@ -173,12 +174,12 @@ export default function ProfilePage() {
             <div className="w-full h-[1px] bg-zinc-800"></div>
           </div>
 
-          <div className="space-y-4 md:grid md:grid-cols-2 md:gap-4 md:space-y-0">
+          <div className="flex flex-col gap-4">
             {faqData.map((faq, index) => (
-              <div key={index} className={`bg-[#141414] rounded-xl overflow-hidden transition-all duration-300 border border-zinc-900/50 hover:border-[#C5A059]/20 ${openFaq === index ? 'md:col-span-2' : ''}`}>
+              <div key={index} className="bg-[#141414] rounded-xl overflow-hidden transition-all duration-300 border border-zinc-900/50 hover:border-[#C5A059]/20">
                 <button 
                   onClick={() => toggleFaq(index)}
-                  className="w-full px-6 py-5 flex justify-between items-center text-left h-full"
+                  className="w-full px-6 py-5 flex justify-between items-center text-left"
                 >
                   <span className="text-zinc-200 text-sm font-medium leading-relaxed pr-4">
                     {faq.question}
@@ -190,7 +191,7 @@ export default function ProfilePage() {
                 
                 <div className={`
                   px-6 overflow-hidden transition-all duration-300 ease-in-out
-                  ${openFaq === index ? 'max-h-40 pb-6 opacity-100' : 'max-h-0 opacity-0'}
+                  ${openFaq === index ? 'max-h-96 pb-6 opacity-100' : 'max-h-0 opacity-0'}
                 `}>
                   <p className="text-zinc-500 text-xs md:text-sm leading-relaxed border-t border-zinc-800/50 pt-4">
                     {faq.answer}
