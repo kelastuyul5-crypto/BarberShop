@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { LuPlus, LuMinus, LuPencil, LuLogOut, LuLogIn, LuUser } from "react-icons/lu";
+import { LuPlus, LuMinus, LuPencil, LuLogOut, LuLogIn, LuUser, LuX, LuLock, LuLoader } from "react-icons/lu";
 import { supabase } from "@/utils/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,6 +30,14 @@ export default function ProfilePage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Password Change State
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const router = useRouter();
 
   useEffect(() => {
@@ -54,6 +62,37 @@ export default function ProfilePage() {
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.push("/Rituals");
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+
+    if (newPassword.length < 6) {
+      setError("Password minimal harus 6 karakter.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setError("Konfirmasi password tidak cocok.");
+      return;
+    }
+
+    setIsUpdating(true);
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    setIsUpdating(false);
+
+    if (error) {
+      setError(error.message);
+    } else {
+      alert("Password berhasil diperbarui!");
+      setShowPasswordModal(false);
+      setNewPassword("");
+      setConfirmPassword("");
+    }
   };
 
   const userName = session?.user?.user_metadata?.full_name || session?.user?.email?.split("@")[0] || "User";
@@ -102,7 +141,15 @@ export default function ProfilePage() {
                 <p className="text-zinc-500 text-[10px] md:text-xs font-bold tracking-[0.2em] uppercase mb-1">
                   ACCOUNT ID: {accountId}
                 </p>
-                <p className="text-zinc-600 text-[10px] md:text-xs">{userEmail}</p>
+                <p className="text-zinc-600 text-[10px] md:text-xs mb-6">{userEmail}</p>
+
+                <button 
+                  onClick={() => setShowPasswordModal(true)}
+                  className="inline-flex items-center gap-2 text-[#C5A059] border border-[#C5A059]/30 px-4 py-2 rounded-lg text-[10px] font-bold tracking-widest hover:bg-[#C5A059] hover:text-black transition-all"
+                >
+                  <LuLock size={12} />
+                  GANTI PASSWORD
+                </button>
               </>
             ) : (
               <>
@@ -167,6 +214,67 @@ export default function ProfilePage() {
           </section>
         )}
       </div>
+
+      {/* 4. Password Change Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => !isUpdating && setShowPasswordModal(false)}></div>
+          <div className="bg-[#141414] border border-zinc-800 rounded-2xl w-full max-w-sm relative z-10 overflow-hidden shadow-2xl">
+            {/* Modal Header */}
+            <div className="flex justify-between items-center p-6 border-b border-zinc-800/50">
+              <h3 className="text-xl font-serif text-[#C5A059]">Ganti Password</h3>
+              <button 
+                onClick={() => setShowPasswordModal(false)}
+                disabled={isUpdating}
+                className="text-zinc-500 hover:text-white transition-colors disabled:opacity-30"
+              >
+                <LuX size={24} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleUpdatePassword} className="p-6 space-y-4">
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs p-3 rounded-lg">
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] uppercase">Password Baru</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimal 6 karakter"
+                  className="w-full bg-[#0A0A0A] border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#C5A059]/50 transition-all"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] uppercase">Konfirmasi Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Ulangi password baru"
+                  className="w-full bg-[#0A0A0A] border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-[#C5A059]/50 transition-all"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isUpdating}
+                className="w-full bg-[#E5C158] text-black py-4 rounded-lg text-xs font-bold tracking-widest hover:bg-[#C5A059] transition-colors shadow-lg shadow-[#E5C158]/10 flex justify-center items-center gap-2 mt-4 disabled:opacity-50"
+              >
+                {isUpdating ? <LuLoader className="w-4 h-4 animate-spin" /> : "PERBARUI PASSWORD"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

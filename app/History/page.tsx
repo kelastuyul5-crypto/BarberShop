@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { LuUser, LuCalendar, LuLoader, LuUpload, LuX, LuLogIn } from "react-icons/lu";
+import { LuUser, LuCalendar, LuLoader, LuUpload, LuX, LuLogIn, LuMessageCircle } from "react-icons/lu";
 import { getBookingHistory, submitPaymentProof, cancelBooking } from "@/app/actions/booking";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
@@ -139,8 +139,39 @@ export default function HistoryPage() {
           <span className="text-[#C5A059] text-[10px] font-bold tracking-[0.2em] uppercase block mb-3">
             YOUR JOURNEY
           </span>
-          <h1 className="text-5xl md:text-7xl font-serif text-white mb-6">Booking<br />History</h1>
-          <div className="w-16 h-1 bg-[#C5A059]"></div>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div>
+              <h1 className="text-5xl md:text-7xl font-serif text-white mb-6">Booking<br />History</h1>
+              <div className="w-16 h-1 bg-[#C5A059]"></div>
+            </div>
+            
+            <a
+              href="https://wa.me/6288747014511"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-green-500/10 text-green-500 border border-green-500/30 px-6 py-3 rounded-lg text-xs font-bold tracking-widest hover:bg-green-500 hover:text-black transition-colors w-fit"
+            >
+              <LuMessageCircle size={16} />
+              HUBUNGI ADMIN
+            </a>
+          </div>
+        </section>
+
+        {/* Info Note */}
+        <section className="px-6 md:px-0 mb-8">
+          <div className="bg-[#1A1A1A] rounded-xl p-4 flex gap-4 border-l-2 border-[#E5C158]">
+            <div className="mt-0.5 shrink-0">
+              <div className="w-4 h-5 border border-[#E5C158] rounded-[3px] flex items-center justify-center">
+                <span className="text-[#E5C158] text-[8px] font-bold">!</span>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-white text-xs font-bold mb-1">Informasi Perubahan</h3>
+              <p className="text-zinc-400 text-[10px] leading-relaxed">
+                Jika ingin melakukan pembatalan atau penjadwalan ulang (rescheduling), silakan hubungi admin melalui WhatsApp.
+              </p>
+            </div>
+          </div>
         </section>
 
         {/* 2. History List */}
@@ -210,16 +241,12 @@ export default function HistoryPage() {
                       </div>
                     </div>
 
-                    <div className="mt-6 pt-4 border-t border-zinc-800/50 flex flex-col md:flex-row justify-between items-center gap-4">
-                      <p className="text-[#C5A059] font-bold font-mono text-lg">
-                        RP {booking.total_price.toLocaleString('id-ID')}
-                      </p>
-                      
-                      <div className="flex gap-3 w-full md:w-auto">
+                    <div className="mt-6 pt-4 border-t border-zinc-800/50">
+                      <div className="flex gap-3 w-full">
                         {canUpload && (
                           <button
                             onClick={() => setSelectedBookingId(booking.id)}
-                            className="flex-1 md:flex-none bg-[#E5C158]/10 text-[#E5C158] border border-[#E5C158]/30 px-4 py-2 rounded-lg text-xs font-bold tracking-wider hover:bg-[#E5C158] hover:text-black transition-colors"
+                            className="flex-1 bg-[#E5C158] text-black px-4 py-3 rounded-lg text-[10px] font-bold tracking-widest hover:bg-[#C5A059] transition-colors shadow-lg shadow-[#E5C158]/5"
                           >
                             UPLOAD BUKTI
                           </button>
@@ -229,9 +256,9 @@ export default function HistoryPage() {
                           <button
                             onClick={() => handleCancelBooking(booking.id)}
                             disabled={isCancelling === booking.id}
-                            className="flex-1 md:flex-none border border-red-500/30 text-red-500/70 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg text-xs font-bold tracking-wider transition-all disabled:opacity-50"
+                            className="flex-1 border border-red-500/20 text-red-500/60 hover:bg-red-500 hover:text-white px-4 py-3 rounded-lg text-[10px] font-bold tracking-widest transition-all disabled:opacity-50"
                           >
-                            {isCancelling === booking.id ? "BATALKAN..." : "BATALKAN"}
+                            {isCancelling === booking.id ? "PROSES..." : "BATALKAN"}
                           </button>
                         )}
                       </div>

@@ -1,9 +1,22 @@
 "use server";
 
-import { supabase } from "@/utils/supabase";
+import { supabase, supabaseAdmin } from "@/utils/supabase";
 import { revalidatePath } from "next/cache";
 
 // No more hardcoded dummy user — userId is passed from the authenticated client
+
+export async function autoCancelExpiredBookings() {
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from("bookings")
+    .update({ status: "cancelled" })
+    .eq("status", "awaiting_payment")
+    .lt("expires_at", now);
+    
+  if (error) {
+    console.error("Error auto-cancelling bookings:", error);
+  }
+}
 
 export async function getBarbers() {
   const { data, error } = await supabase
@@ -17,6 +30,19 @@ export async function getBarbers() {
     return [];
   }
   return data;
+}
+
+export async function getAbsentBarbers(date: string) {
+  const { data, error } = await supabase
+    .from("barber_absences")
+    .select("barber_id")
+    .eq("date", date);
+
+  if (error) {
+    console.error("Error fetching absent barbers:", error);
+    return [];
+  }
+  return data.map(d => d.barber_id);
 }
 
 export async function getServices() {
@@ -33,6 +59,9 @@ export async function getServices() {
 }
 
 export async function checkAvailability(date: string, barberId: string) {
+  // Bersihkan dulu booking yang sudah expired
+  await autoCancelExpiredBookings();
+
   // Ambil booking dengan status 'confirmed', 'pending_confirmation' ATAU 'awaiting_payment' yang belum expired
   const now = new Date().toISOString();
   
@@ -60,11 +89,23 @@ export async function checkAvailability(date: string, barberId: string) {
     })
     .map(booking => booking.booking_time);
 
-  return bookedTimes;
+  // Juga ambil slot yang diblokir admin
+  const { data: blockedSlots } = await supabase
+    .from("barber_unavailable_slots")
+    .select("time")
+    .eq("barber_id", barberId)
+    .eq("date", date);
+
+  const blockedTimes = (blockedSlots || []).map(s => s.time);
+
+  // Gabungkan dan hilangkan duplikat
+  return [...new Set([...bookedTimes, ...blockedTimes])];
 }
 
 export async function checkUserActiveBooking(userId: string) {
   if (!userId) return { hasActive: false };
+
+  await autoCancelExpiredBookings();
 
   const now = new Date().toISOString();
 
@@ -104,6 +145,44 @@ export async function createBookingHold(input: CreateBookingInput, userId: strin
   const activeCheck = await checkUserActiveBooking(userId);
   if (activeCheck.hasActive) {
     return { success: false, error: "Anda masih memiliki pesanan yang belum dibayar. Selesaikan atau batalkan terlebih dahulu." };
+  }
+
+  // Validasi Cuti (Absence)
+  const { data: absence } = await supabase
+    .from("barber_absences")
+    .select("id")
+    .eq("barber_id", input.barberId)
+    .eq("date", input.date)
+    .maybeSingle();
+
+  if (absence) {
+    return { success: false, error: "Barber sedang cuti pada tanggal ini." };
+  }
+
+  // Validasi Time Travel
+  const now = new Date();
+  const todayStr = now.toISOString().split('T')[0]; // asumsikan zona waktu server & klien mirip, atau gunakan util
+  // Untuk amannya, kita parse manual
+  const tzOffset = 7 * 60 * 60 * 1000; // WIB (UTC+7)
+  const localNow = new Date(now.getTime() + tzOffset);
+  const localTodayStr = localNow.toISOString().split('T')[0];
+
+  if (input.date === localTodayStr) {
+    const timeMatch = input.time.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (timeMatch) {
+      let hours = parseInt(timeMatch[1], 10);
+      const minutes = parseInt(timeMatch[2], 10);
+      const ampm = timeMatch[3].toUpperCase();
+      if (ampm === "PM" && hours < 12) hours += 12;
+      if (ampm === "AM" && hours === 12) hours = 0;
+      
+      const selectedTimeMins = hours * 60 + minutes;
+      const currentTimeMins = localNow.getUTCHours() * 60 + localNow.getUTCMinutes(); // getUTCHours krn localNow sdh ditambah offset
+      
+      if (selectedTimeMins <= currentTimeMins) {
+        return { success: false, error: "Waktu yang dipilih sudah lewat." };
+      }
+    }
   }
 
   const expiresAt = new Date();
@@ -158,7 +237,7 @@ export async function submitPaymentProof(bookingId: string, formData: FormData) 
     // Asumsi ada bucket bernama "payment-proofs"
     const fileExt = file.name.split(".").pop();
     const fileName = `${bookingId}-${Date.now()}.${fileExt}`;
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await supabaseAdmin.storage
       .from("payment-proofs")
       .upload(fileName, file);
 
@@ -167,12 +246,12 @@ export async function submitPaymentProof(bookingId: string, formData: FormData) 
       return { success: false, error: uploadError.message };
     }
 
-    const { data: publicUrlData } = supabase.storage
+    const { data: publicUrlData } = supabaseAdmin.storage
       .from("payment-proofs")
       .getPublicUrl(fileName);
 
     // Update status to pending_confirmation
-    const { error: updateError } = await supabase
+    const { error: updateError } = await supabaseAdmin
       .from("bookings")
       .update({
         payment_proof_url: publicUrlData.publicUrl,
@@ -207,7 +286,21 @@ export async function checkBookingStatus(bookingId: string) {
   return data;
 }
 
+export async function getClosedDates() {
+  const { data, error } = await supabase
+    .from("shop_settings")
+    .select("closed_date");
+
+  if (error) {
+    console.error("Error fetching closed dates:", error);
+    return [];
+  }
+  return data.map(row => row.closed_date);
+}
+
 export async function getBookingHistory(userId: string, page: number, limit: number = 5) {
+  await autoCancelExpiredBookings();
+  
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 

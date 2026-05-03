@@ -7,7 +7,7 @@ import { DayPicker } from "react-day-picker";
 import { format, addDays, startOfToday } from "date-fns";
 import { id } from "date-fns/locale";
 import "react-day-picker/dist/style.css";
-import { getBarbers, getServices, checkAvailability, createBookingHold, submitPaymentProof, checkUserActiveBooking } from "@/app/actions/booking";
+import { getBarbers, getServices, checkAvailability, createBookingHold, checkUserActiveBooking, submitPaymentProof, getClosedDates, getAbsentBarbers } from "@/app/actions/booking";
 import Link from "next/link";
 import { supabase } from "@/utils/supabase";
 
@@ -22,6 +22,8 @@ export default function RitualsPage() {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   
   const [bookedTimes, setBookedTimes] = useState<string[]>([]);
+  const [absentBarbers, setAbsentBarbers] = useState<string[]>([]);
+  const [closedDates, setClosedDates] = useState<Date[]>([]);
   const [isCheckingTime, setIsCheckingTime] = useState(false);
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -36,7 +38,7 @@ export default function RitualsPage() {
   const [showLoginModal, setShowLoginModal] = useState(false);
 
   const today = startOfToday();
-  const maxDate = addDays(today, 7);
+  const maxDate = addDays(today, 3);
 
   // Fetch initial data + session
   useEffect(() => {
@@ -45,16 +47,21 @@ export default function RitualsPage() {
       const uid = session?.user?.id || null;
       setUserId(uid);
 
-      const fetchList: [Promise<any>, Promise<any>, Promise<any>?] = [
+      const fetchList: [Promise<any>, Promise<any>, Promise<any>, Promise<any>?] = [
         getBarbers(),
         getServices(),
+        getClosedDates(),
       ];
       if (uid) fetchList.push(checkUserActiveBooking(uid));
 
       const results = await Promise.all(fetchList);
       setBarbers(results[0]);
       setServicesList(results[1]);
-      if (uid && results[2]) setHasActiveBooking(results[2].hasActive);
+      
+      const parsedClosedDates = (results[2] || []).map((dStr: string) => new Date(dStr));
+      setClosedDates(parsedClosedDates);
+      
+      if (uid && results[3]) setHasActiveBooking(results[3].hasActive);
       setIsLoadingData(false);
     }
     loadData();
@@ -66,20 +73,38 @@ export default function RitualsPage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch availability when date or barber changes
+  // Fetch availability and absences when date or barber changes
   useEffect(() => {
     async function loadAvailability() {
-      if (selectedDate && selectedBarber) {
-        setIsCheckingTime(true);
+      if (selectedDate) {
         const dateStr = format(selectedDate, "yyyy-MM-dd");
-        const times = await checkAvailability(dateStr, selectedBarber.id);
-        setBookedTimes(times);
-        setIsCheckingTime(false);
-        // If selected time is now booked, clear it
-        if (selectedTime && times.includes(selectedTime)) {
+        
+        // Fetch absences
+        const absences = await getAbsentBarbers(dateStr);
+        setAbsentBarbers(absences);
+
+        // If selected barber is absent, deselect them
+        if (selectedBarber && absences.includes(selectedBarber.id)) {
+          setSelectedBarber(null);
+          setBookedTimes([]);
           setSelectedTime(null);
+          return;
+        }
+
+        if (selectedBarber) {
+          setIsCheckingTime(true);
+          const times = await checkAvailability(dateStr, selectedBarber.id);
+          setBookedTimes(times);
+          setIsCheckingTime(false);
+          // If selected time is now booked, clear it
+          if (selectedTime && times.includes(selectedTime)) {
+            setSelectedTime(null);
+          }
+        } else {
+          setBookedTimes([]);
         }
       } else {
+        setAbsentBarbers([]);
         setBookedTimes([]);
       }
     }
@@ -127,11 +152,35 @@ export default function RitualsPage() {
     );
   };
 
+  const isTimePassed = (timeStr: string) => {
+    if (!selectedDate) return false;
+    const now = new Date();
+    // Gunakan util format sederhana untuk perbandingan hari yang sama
+    const todayStr = format(now, "yyyy-MM-dd");
+    if (format(selectedDate, "yyyy-MM-dd") !== todayStr) return false;
+    
+    const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    if (!timeMatch) return false;
+    
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = parseInt(timeMatch[2], 10);
+    const ampm = timeMatch[3].toUpperCase();
+    
+    if (ampm === "PM" && hours < 12) hours += 12;
+    if (ampm === "AM" && hours === 12) hours = 0;
+    
+    const selectedTimeMins = hours * 60 + minutes;
+    const currentTimeMins = now.getHours() * 60 + now.getMinutes();
+    
+    return selectedTimeMins <= currentTimeMins;
+  };
+
   const isTimeBooked = (time: string) => bookedTimes.includes(time);
+  const isTimeDisabled = (time: string) => isTimeBooked(time) || isTimePassed(time);
 
   const timeSlotClass = (time: string) => `
     px-5 py-2.5 rounded-lg text-xs font-medium transition-all duration-300 border
-    ${isTimeBooked(time) 
+    ${isTimeDisabled(time) 
       ? "opacity-30 cursor-not-allowed bg-zinc-900 border-zinc-800 text-zinc-500" 
       : selectedTime === time
         ? "bg-[#E5C158] border-transparent text-black font-bold"
@@ -261,7 +310,7 @@ export default function RitualsPage() {
                   onSelect={(date) => {
                     if (date) setSelectedDate(date);
                   }}
-                  disabled={{ before: today, after: maxDate }}
+                  disabled={[{ before: today, after: maxDate }, ...closedDates]}
                   locale={id}
                   disableNavigation
                   hideNavigation
@@ -307,19 +356,21 @@ export default function RitualsPage() {
             <section className="px-6 md:px-0 space-y-4">
               <h2 className="text-2xl font-serif text-white mb-6">Pilih Barber</h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {barbers.map(barber => (
+                {barbers.map(barber => {
+                  const isAbsent = absentBarbers.includes(barber.id);
+                  return (
                   <div
                     key={barber.id}
                     onClick={() => {
-                      if (selectedBarber?.id !== barber.id) {
+                      if (!isAbsent && selectedBarber?.id !== barber.id) {
                         setSelectedBarber(barber);
                         setSelectedTime(null);
                       }
                     }}
                     className={`
-                      bg-[#1A1A1A] rounded-xl overflow-hidden flex md:flex-col h-[104px] md:h-auto relative cursor-pointer transition-all duration-300
-                      hover:bg-zinc-800 active:scale-[0.98]
-                      ${selectedBarber && selectedBarber.id !== barber.id ? 'opacity-30 grayscale' : 'opacity-100'}
+                      bg-[#1A1A1A] rounded-xl overflow-hidden flex md:flex-col h-[104px] md:h-auto relative transition-all duration-300
+                      ${isAbsent ? 'opacity-40 cursor-not-allowed grayscale' : 'cursor-pointer hover:bg-zinc-800 active:scale-[0.98]'}
+                      ${selectedBarber && selectedBarber.id !== barber.id && !isAbsent ? 'opacity-30 grayscale' : ''}
                       ${selectedBarber?.id === barber.id ? 'ring-1 ring-[#E5C158] bg-zinc-800' : ''}
                     `}
                   >
@@ -331,9 +382,10 @@ export default function RitualsPage() {
                       <span className="text-[#C5A059] text-[8px] font-bold tracking-[0.2em] uppercase mb-1">SCHEDULED WITH</span>
                       <h3 className="text-lg font-serif text-white mb-1">{barber.name}</h3>
                       <p className="text-zinc-500 text-[10px] leading-tight">{barber.specialty}</p>
+                      {isAbsent && <p className="text-red-500 text-[10px] font-bold mt-1.5 tracking-widest">SEDANG CUTI</p>}
                     </div>
                   </div>
-                ))}
+                )})}
               </div>
             </section>
 
@@ -352,7 +404,7 @@ export default function RitualsPage() {
                     <h3 className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] uppercase mb-3">RITUAL PAGI</h3>
                     <div className="flex flex-wrap gap-3">
                       {morningSlots.map(time => (
-                        <button key={time} disabled={isTimeBooked(time)} onClick={() => setSelectedTime(time)} className={timeSlotClass(time)}>{time}</button>
+                        <button key={time} disabled={isTimeDisabled(time)} onClick={() => setSelectedTime(time)} className={timeSlotClass(time)}>{time}</button>
                       ))}
                     </div>
                   </div>
@@ -360,7 +412,7 @@ export default function RitualsPage() {
                     <h3 className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] uppercase mb-3">RITUAL SIANG</h3>
                     <div className="flex flex-wrap gap-3">
                       {noonSlots.map(time => (
-                        <button key={time} disabled={isTimeBooked(time)} onClick={() => setSelectedTime(time)} className={timeSlotClass(time)}>{time}</button>
+                        <button key={time} disabled={isTimeDisabled(time)} onClick={() => setSelectedTime(time)} className={timeSlotClass(time)}>{time}</button>
                       ))}
                     </div>
                   </div>
@@ -368,7 +420,7 @@ export default function RitualsPage() {
                     <h3 className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] uppercase mb-3">SORE SANTAI</h3>
                     <div className="flex flex-wrap gap-3">
                       {eveningSlots.map(time => (
-                        <button key={time} disabled={isTimeBooked(time)} onClick={() => setSelectedTime(time)} className={timeSlotClass(time)}>{time}</button>
+                        <button key={time} disabled={isTimeDisabled(time)} onClick={() => setSelectedTime(time)} className={timeSlotClass(time)}>{time}</button>
                       ))}
                     </div>
                   </div>
@@ -413,27 +465,27 @@ export default function RitualsPage() {
 
       {/* Payment Modal */}
       {showPaymentModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
-          <div className="bg-[#141414] border border-zinc-800 rounded-2xl w-full max-w-md relative z-10 overflow-hidden shadow-2xl">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowPaymentModal(false)}></div>
+          <div className="bg-[#141414] border-t sm:border border-zinc-800 rounded-t-[2.5rem] sm:rounded-2xl w-full max-w-md relative z-10 overflow-hidden shadow-2xl flex flex-col max-h-[92vh]">
             {/* Modal Header */}
-            <div className="flex justify-between items-center p-6 border-b border-zinc-800/50">
-              <div className="flex items-center gap-4">
-                <h3 className="text-xl font-serif text-[#C5A059]">Selesaikan Pembayaran</h3>
-                <div className="text-[#E5C158] font-mono font-bold px-3 py-1 bg-[#E5C158]/10 rounded border border-[#E5C158]/20 text-xs">
+            <div className="flex justify-between items-center p-6 border-b border-zinc-800/50 shrink-0">
+              <div className="flex items-center gap-3">
+                <h3 className="text-lg font-serif text-[#C5A059]">Pembayaran</h3>
+                <div className="text-[#E5C158] font-mono font-bold px-2 py-0.5 bg-[#E5C158]/10 rounded border border-[#E5C158]/20 text-[10px]">
                   {countdown}
                 </div>
               </div>
               <button 
                 onClick={() => setShowPaymentModal(false)}
-                className="text-zinc-500 hover:text-white transition-colors"
+                className="text-zinc-500 hover:text-white transition-colors p-1"
               >
-                <LuX size={24} />
+                <LuX size={20} />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto">
               {/* Order Summary */}
               <div className="bg-[#1A1A1A] p-4 rounded-xl border border-zinc-800/50 space-y-3">
                 <div className="flex justify-between items-center">
@@ -487,7 +539,16 @@ export default function RitualsPage() {
                     type="file"
                     className="hidden"
                     accept="image/*"
-                    onChange={(e) => setUploadedFile(e.target.files?.[0] || null)}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file && file.size > 5 * 1024 * 1024) {
+                        alert("Ukuran file terlalu besar! Maksimal 5MB. Silakan gunakan file yang lebih kecil.");
+                        setUploadedFile(null);
+                        setShowPaymentModal(false); // Menutup pop-up sesuai permintaan
+                      } else {
+                        setUploadedFile(file || null);
+                      }
+                    }}
                   />
                 </label>
                 {uploadedFile && (
@@ -499,7 +560,7 @@ export default function RitualsPage() {
             </div>
 
             {/* Modal Footer */}
-            <div className="p-6 border-t border-zinc-800/50">
+            <div className="p-6 border-t border-zinc-800/50 bg-[#141414] shrink-0">
               <button
                 onClick={handleSubmitPayment}
                 disabled={!uploadedFile || isUploading}
@@ -514,9 +575,9 @@ export default function RitualsPage() {
 
       {/* Login Required Modal */}
       {showLoginModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setShowLoginModal(false)} />
-          <div className="bg-[#141414] border border-zinc-800 rounded-2xl w-full max-w-sm relative z-10 overflow-hidden shadow-2xl">
+          <div className="bg-[#141414] border-t sm:border border-zinc-800 rounded-t-[2.5rem] sm:rounded-2xl w-full max-w-sm relative z-10 overflow-hidden shadow-2xl flex flex-col">
             {/* Modal Header */}
             <div className="flex justify-end p-4">
               <button onClick={() => setShowLoginModal(false)} className="text-zinc-500 hover:text-white transition-colors">

@@ -45,7 +45,22 @@ function LoginForm() {
       return;
     }
 
-    router.push(redirectTo);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (profile?.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push(redirectTo);
+      }
+    } else {
+      router.push(redirectTo);
+    }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -68,7 +83,22 @@ function LoginForm() {
     }
 
     // Since email confirmation is OFF, user is logged in immediately
-    router.push(redirectTo);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+      
+      if (profile?.role === 'admin') {
+        router.push('/admin');
+      } else {
+        router.push(redirectTo);
+      }
+    } else {
+      router.push(redirectTo);
+    }
   };
 
   const switchTab = (newTab: "login" | "register") => {

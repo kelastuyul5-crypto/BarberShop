@@ -7,6 +7,10 @@ import { LuBookOpen, LuScissors, LuHistory, LuUser } from "react-icons/lu";
 export default function Footer() {
   const pathname = usePathname();
 
+  // Hide footer entirely on admin pages
+  if (pathname.toLowerCase().startsWith("/admin")) {
+    return null;
+  }
   const navItems = [
     {
       name: "JOURNAL",

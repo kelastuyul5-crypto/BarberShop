@@ -7,6 +7,11 @@ import ProfileHeader from "./ProfileHeader";
 export default function ClientHeader() {
   const pathname = usePathname();
 
+  // Hide header entirely on admin pages
+  if (pathname.toLowerCase().startsWith("/admin")) {
+    return null;
+  }
+
   // Render the ProfileHeader on the Profile page (case-insensitive check)
   if (pathname.toLowerCase().startsWith("/profile")) {
     return <ProfileHeader />;
