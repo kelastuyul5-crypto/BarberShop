@@ -10,8 +10,9 @@ import {
   getAllBookings, updateBookingStatus,
   getShopSettings, addClosedDate, deleteClosedDate,
   getBarberSchedule, blockBarberSlot, unblockBarberSlot,
-  getBarberAbsences, toggleBarberAbsence,
+  getBarberAbsences, toggleBarberAbsence, rescheduleBooking
 } from "@/app/actions/admin";
+import { checkAvailability } from "@/app/actions/booking";
 import { format, addDays, startOfToday, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isBefore, isAfter, isSameDay, isSameMonth } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 
@@ -21,13 +22,13 @@ type Tab = "bookings" | "barbers" | "services" | "settings";
 function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
-      <div className="bg-[#1A1A1A] border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4 py-8">
+      <div className="bg-[#1A1A1A] border border-zinc-800 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-full">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
           <h3 className="text-white font-serif text-lg">{title}</h3>
           <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors"><LuX size={20} /></button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="p-6 overflow-y-auto">{children}</div>
       </div>
     </div>
   );
@@ -71,9 +72,9 @@ function BarbersTab() {
   const startPad = getDay(calStart); // 0=Sun
 
   const TIME_SLOTS = [
-    "09:00 AM", "10:00 AM", "11:00 AM",
-    "12:30 PM", "01:30 PM", "02:30 PM", "03:30 PM", "04:30 PM",
-    "06:00 PM", "07:00 PM"
+    "09:00", "10:00", "11:00",
+    "12:30", "13:30", "14:30", "15:30", "16:30",
+    "18:00", "19:00"
   ];
 
   const load = async () => { setLoading(true); setBarbers(await getAllBarbers()); setLoading(false); };
@@ -156,15 +157,11 @@ function BarbersTab() {
     if (selectedCalDate < todayStr) return true;
     if (selectedCalDate > todayStr) return false;
     
-    const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    const timeMatch = timeStr.match(/(\d+):(\d+)/);
     if (!timeMatch) return false;
     
-    let hours = parseInt(timeMatch[1], 10);
+    const hours = parseInt(timeMatch[1], 10);
     const minutes = parseInt(timeMatch[2], 10);
-    const ampm = timeMatch[3].toUpperCase();
-    
-    if (ampm === "PM" && hours < 12) hours += 12;
-    if (ampm === "AM" && hours === 12) hours = 0;
     
     const selectedTimeMins = hours * 60 + minutes;
     const currentTimeMins = now.getHours() * 60 + now.getMinutes();
@@ -424,8 +421,96 @@ function BookingsTab() {
   const [totalPages, setTotalPages] = useState(1);
   const [proofUrl, setProofUrl] = useState<string | null>(null);
 
+  // Reschedule State
+  const [rescheduleModal, setRescheduleModal] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<any>(null);
+  const [rescheduleForm, setRescheduleForm] = useState({ barberId: "", date: "", time: "" });
+  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
+  const [barbers, setBarbers] = useState<any[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const load = async () => { setLoading(true); const res = await getAllBookings(page, 8); setBookings(res.data || []); setTotalPages(res.totalPages || 1); setLoading(false); };
-  useEffect(() => { load(); }, [page]);
+  useEffect(() => { 
+    load(); 
+    getAllBarbers().then(setBarbers);
+  }, [page]);
+
+  const fetchSlots = async (date: string, barberId: string) => {
+    if (!date || !barberId) return;
+    setLoadingSlots(true);
+    try {
+      const bookedOrBlocked = await checkAvailability(date, barberId);
+      
+      const TIME_SLOTS = [
+        "09:00", "10:00", "11:00",
+        "12:30", "13:30", "14:30", "15:30", "16:30",
+        "18:00", "19:00"
+      ];
+
+      const now = new Date();
+      const todayStr = format(now, "yyyy-MM-dd");
+
+      const available = TIME_SLOTS.filter(slot => {
+        if (bookedOrBlocked.includes(slot)) return false;
+        
+        // Filter past times if today
+        if (date === todayStr) {
+          const timeMatch = slot.match(/(\d+):(\d+)/);
+          if (timeMatch) {
+            const hours = parseInt(timeMatch[1], 10);
+            const minutes = parseInt(timeMatch[2], 10);
+            
+            const selectedTimeMins = hours * 60 + minutes;
+            const currentTimeMins = now.getHours() * 60 + now.getMinutes();
+            
+            if (selectedTimeMins <= currentTimeMins) return false;
+          }
+        }
+        return true;
+      });
+      
+      setAvailableTimes(available);
+    } catch (err) {
+      console.error(err);
+    }
+    setLoadingSlots(false);
+  };
+
+  useEffect(() => {
+    if (rescheduleModal && rescheduleForm.date && rescheduleForm.barberId) {
+      fetchSlots(rescheduleForm.date, rescheduleForm.barberId);
+    } else {
+      setAvailableTimes([]);
+    }
+  }, [rescheduleForm.date, rescheduleForm.barberId, rescheduleModal]);
+
+  const handleRescheduleClick = (booking: any) => {
+    setSelectedBooking(booking);
+    setRescheduleForm({
+      barberId: booking.barber_id || "",
+      date: booking.booking_date || "",
+      time: booking.booking_time || ""
+    });
+    setRescheduleModal(true);
+  };
+
+  const submitReschedule = async () => {
+    if (!rescheduleForm.barberId || !rescheduleForm.date || !rescheduleForm.time) {
+      alert("Harap lengkapi semua field reschedule.");
+      return;
+    }
+    setIsSubmitting(true);
+    const res = await rescheduleBooking(selectedBooking.id, rescheduleForm.barberId, rescheduleForm.date, rescheduleForm.time);
+    setIsSubmitting(false);
+    
+    if (res.success) {
+      setRescheduleModal(false);
+      load();
+    } else {
+      alert("Gagal reschedule: " + res.error);
+    }
+  };
 
   const statusColor: Record<string, string> = {
     awaiting_payment: "text-yellow-400 border-yellow-500/30 bg-yellow-500/5",
@@ -483,9 +568,14 @@ function BookingsTab() {
                   </>
                 )}
                 {b.status === "confirmed" && (
-                  <button onClick={() => handleStatus(b.id, "completed")} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold tracking-wider border border-emerald-500/30 text-emerald-400 rounded-lg hover:bg-emerald-500/10 transition-colors">
-                    <LuCheck size={14} /> SELESAI
-                  </button>
+                  <>
+                    <button onClick={() => handleStatus(b.id, "completed")} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold tracking-wider border border-emerald-500/30 text-emerald-400 rounded-lg hover:bg-emerald-500/10 transition-colors">
+                      <LuCheck size={14} /> SELESAI
+                    </button>
+                    <button onClick={() => handleRescheduleClick(b)} className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold tracking-wider border border-purple-500/30 text-purple-400 rounded-lg hover:bg-purple-500/10 transition-colors">
+                      <LuCalendar size={14} /> RESCHEDULE
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -501,7 +591,69 @@ function BookingsTab() {
       )}
       {/* Proof Modal */}
       <Modal open={!!proofUrl} onClose={() => setProofUrl(null)} title="Bukti Pembayaran">
-        {proofUrl && <img src={proofUrl} alt="Bukti Pembayaran" className="w-full rounded-lg" />}
+        {proofUrl && (
+          <div className="flex justify-center bg-black/20 rounded-lg p-2">
+            <img src={proofUrl} alt="Bukti Pembayaran" className="max-w-full max-h-[60vh] rounded-lg object-contain" />
+          </div>
+        )}
+      </Modal>
+
+      {/* Reschedule Modal */}
+      <Modal open={rescheduleModal} onClose={() => setRescheduleModal(false)} title="Reschedule Booking">
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] uppercase">Pilih Barber</label>
+            <select
+              value={rescheduleForm.barberId}
+              onChange={(e) => setRescheduleForm(prev => ({ ...prev, barberId: e.target.value, time: "" }))}
+              className="w-full bg-[#0A0A0A] border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-[#C5A059]/50 transition-all appearance-none"
+            >
+              <option value="">-- Pilih Barber --</option>
+              {barbers.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] uppercase">Tanggal Baru</label>
+            <input
+              type="date"
+              value={rescheduleForm.date}
+              min={format(new Date(), "yyyy-MM-dd")}
+              max={format(addDays(new Date(), 14), "yyyy-MM-dd")}
+              onChange={(e) => setRescheduleForm(prev => ({ ...prev, date: e.target.value, time: "" }))}
+              className="w-full bg-[#0A0A0A] border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-[#C5A059]/50 transition-all [color-scheme:dark]"
+            />
+            <p className="text-xs text-zinc-600 mt-1">Maksimal 14 hari ke depan.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] uppercase">Jam Baru</label>
+            <select
+              value={rescheduleForm.time}
+              onChange={(e) => setRescheduleForm(prev => ({ ...prev, time: e.target.value }))}
+              disabled={!rescheduleForm.date || !rescheduleForm.barberId || loadingSlots}
+              className="w-full bg-[#0A0A0A] border border-zinc-800 rounded-lg px-4 py-3 text-sm text-white focus:outline-none focus:border-[#C5A059]/50 transition-all appearance-none disabled:opacity-50"
+            >
+              <option value="">{loadingSlots ? "Memuat jadwal..." : "-- Pilih Jam --"}</option>
+              {availableTimes.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+            {rescheduleForm.date && rescheduleForm.barberId && availableTimes.length === 0 && !loadingSlots && (
+              <p className="text-xs text-red-400 mt-1">Tidak ada jam tersedia di tanggal ini.</p>
+            )}
+          </div>
+
+          <button
+            onClick={submitReschedule}
+            disabled={isSubmitting || !rescheduleForm.barberId || !rescheduleForm.date || !rescheduleForm.time}
+            className="w-full bg-[#E5C158] text-black py-3 rounded-lg text-xs font-bold tracking-widest hover:bg-[#C5A059] transition-colors mt-4 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center"
+          >
+            {isSubmitting ? <LuLoader className="w-4 h-4 animate-spin" /> : "SIMPAN RESCHEDULE"}
+          </button>
+        </div>
       </Modal>
     </div>
   );

@@ -13,12 +13,12 @@ const faqData = [
     answer: "Anda dapat melihat dan mengelola semua reservasi aktif maupun riwayat di halaman 'History'. Untuk pembatalan, pastikan dilakukan minimal 2 jam sebelum jadwal yang ditentukan."
   },
   {
-    question: "Berapa lama batas waktu pembayaran setelah booking?",
-    answer: "Setiap booking memiliki batas waktu 15 menit untuk mengunggah bukti pembayaran. Jika lewat dari waktu tersebut, slot Anda akan otomatis dibatalkan oleh sistem untuk memberikan kesempatan bagi pelanggan lain."
+    question: "Bagaimana cara melakukan konfirmasi pembayaran?",
+    answer: "Setelah melakukan transfer sesuai nominal, Anda wajib mengunggah bukti pembayaran di halaman 'Rituals'. Admin kami akan memverifikasi bukti tersebut maksimal 15 menit agar status reservasi Anda berubah menjadi 'Confirmed'."
   },
   {
     question: "Bisakah saya meminta barber tertentu?",
-    answer: "Tentu saja. Di halaman 'Rituals', Anda memiliki kebebasan untuk memilih master barber favorit Anda sebelum mengonfirmasi pesanan."
+    answer: "Tentu saja. Di halaman 'Rituals', Anda memiliki kebebasan untuk memilih master barber favorit Anda, seperti Ujang Mawang atau Julian Tompel, sebelum mengonfirmasi pesanan."
   },
   {
     question: "Bagaimana kebijakan pembatalan & modifikasi?",
@@ -169,12 +169,12 @@ export default function ProfilePage() {
 
         {/* 2. FAQ Section */}
         <section className="px-6 md:px-0">
-          <div className="mb-8">
-            <h2 className="text-4xl font-serif text-white mb-4">FAQ</h2>
-            <div className="w-full h-[1px] bg-zinc-800"></div>
+          <div className="mb-10 text-left max-w-2xl mx-auto">
+            <h2 className="text-lg md:text-2xl font-serif text-white mb-4 uppercase tracking-wider">Frequently Asked Questions</h2>
+            <div className="w-full h-[2px] bg-[#C5A059]"></div>
           </div>
 
-          <div className="flex flex-col gap-4">
+          <div className="space-y-4 max-w-2xl mx-auto">
             {faqData.map((faq, index) => (
               <div key={index} className="bg-[#141414] rounded-xl overflow-hidden transition-all duration-300 border border-zinc-900/50 hover:border-[#C5A059]/20">
                 <button 
@@ -191,7 +191,7 @@ export default function ProfilePage() {
                 
                 <div className={`
                   px-6 overflow-hidden transition-all duration-300 ease-in-out
-                  ${openFaq === index ? 'max-h-96 pb-6 opacity-100' : 'max-h-0 opacity-0'}
+                  ${openFaq === index ? 'max-h-[500px] pb-6 opacity-100' : 'max-h-0 opacity-0'}
                 `}>
                   <p className="text-zinc-500 text-xs md:text-sm leading-relaxed border-t border-zinc-800/50 pt-4">
                     {faq.answer}

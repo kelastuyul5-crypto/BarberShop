@@ -133,6 +133,23 @@ export async function updateBookingStatus(bookingId: string, status: string) {
   return { success: true };
 }
 
+export async function rescheduleBooking(bookingId: string, barberId: string, bookingDate: string, bookingTime: string) {
+  if (!(await checkAdmin())) return { success: false, error: "Unauthorized" };
+  const { error } = await supabaseAdmin
+    .from("bookings")
+    .update({ 
+      barber_id: barberId,
+      booking_date: bookingDate,
+      booking_time: bookingTime
+    })
+    .eq("id", bookingId);
+
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin");
+  revalidatePath("/Rituals");
+  return { success: true };
+}
+
 // ─── SHOP SETTINGS ──────────────────────────────────────────
 
 export async function getShopSettings() {

@@ -159,15 +159,11 @@ export default function RitualsPage() {
     const todayStr = format(now, "yyyy-MM-dd");
     if (format(selectedDate, "yyyy-MM-dd") !== todayStr) return false;
     
-    const timeMatch = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+    const timeMatch = timeStr.match(/(\d+):(\d+)/);
     if (!timeMatch) return false;
     
-    let hours = parseInt(timeMatch[1], 10);
+    const hours = parseInt(timeMatch[1], 10);
     const minutes = parseInt(timeMatch[2], 10);
-    const ampm = timeMatch[3].toUpperCase();
-    
-    if (ampm === "PM" && hours < 12) hours += 12;
-    if (ampm === "AM" && hours === 12) hours = 0;
     
     const selectedTimeMins = hours * 60 + minutes;
     const currentTimeMins = now.getHours() * 60 + now.getMinutes();
@@ -271,9 +267,9 @@ export default function RitualsPage() {
     );
   }
 
-  const morningSlots = ["09:00 AM", "10:00 AM", "11:00 AM"];
-  const noonSlots = ["12:30 PM", "01:30 PM", "02:30 PM", "03:30 PM", "04:30 PM"];
-  const eveningSlots = ["06:00 PM", "07:00 PM"];
+  const morningSlots = ["09:00", "10:00", "11:00"];
+  const noonSlots = ["12:30", "13:30", "14:30", "15:30", "16:30"];
+  const eveningSlots = ["18:00", "19:00"];
 
   return (
     <div className="bg-[#0A0A0A] text-white font-sans overflow-x-hidden min-h-screen">
