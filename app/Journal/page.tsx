@@ -102,7 +102,7 @@ export default function JournalPage() {
             
             <div className="space-y-6 text-zinc-400 text-sm md:text-base leading-relaxed mb-12">
               <p>
-                Didirikan di tahun 1924, The Atelier bermula dari sebuah ruangan kecil di sudut kota yang menjanjikan ketelitian dan dedikasi pada setiap helai rambut. Selama beberapa generasi, kami telah dipercaya menjaga penampilan para pria, tidak hanya sekadar tren sesaat, namun sebuah gaya hidup yang abadi.
+                Didirikan di tahun 1998, The Atelier bermula dari sebuah ruangan kecil di sudut kota yang menjanjikan ketelitian dan dedikasi pada setiap helai rambut. Selama beberapa generasi, kami telah dipercaya menjaga penampilan para pria, tidak hanya sekadar tren sesaat, namun sebuah gaya hidup yang abadi.
               </p>
               <p>
                 Setiap pelanggan adalah individu dengan karakter unik, dan kami memahami bahwa setiap potongan rambut harus mencerminkan kepribadian tersebut. Dari gaya klasik hingga potongan modern, kami memadukan teknik tradisional dengan sentuhan masa kini untuk menciptakan gaya yang tak lekang oleh waktu.
@@ -115,7 +115,7 @@ export default function JournalPage() {
                <img src="https://images.unsplash.com/photo-1590540179852-2110a54f813a?auto=format&fit=crop&q=80" className="w-full h-full object-cover opacity-30" />
             </div>
             <div className="aspect-[3/4] bg-zinc-900 border border-[#C5A059]/20 flex items-center justify-center overflow-hidden translate-y-8 relative">
-               <img src="https://images.unsplash.com/photo-1621605815841-28d944683320?auto=format&fit=crop&q=80" className="w-full h-full object-cover opacity-30" />
+               <img src="/images/atelier-story-2.png" className="w-full h-full object-cover opacity-50 hover:opacity-80 transition-opacity duration-500" alt="Atelier Story Image 2" />
             </div>
           </div>
         </div>
@@ -129,7 +129,7 @@ export default function JournalPage() {
             <span className="text-[#C5A059] text-[10px] font-bold tracking-[0.3em] uppercase block mb-2">
               OUR LEGACY
             </span>
-            <h2 className="text-4xl md:text-6xl font-serif text-white italic">Established 1924</h2>
+            <h2 className="text-4xl md:text-6xl font-serif text-white italic">Established 1998</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-16 mb-16 md:mb-32">
@@ -159,7 +159,7 @@ export default function JournalPage() {
               "The barbershop is the cornerstone of the modern man's routine. The tools are our instruments and our customers the canvas."
             </p>
             <p className="text-[#C5A059] text-[10px] font-bold tracking-widest uppercase pl-6 md:pl-0">
-              — THE FOUNDERS ATELIER, 1924
+              — THE FOUNDERS ATELIER, 1998
             </p>
           </div>
         </div>
@@ -181,7 +181,7 @@ export default function JournalPage() {
                 <p className="text-white font-bold mb-3 uppercase tracking-widest">STUDIO</p>
                 <p className="text-zinc-500 leading-relaxed">
                   123 Heritage Street,<br />
-                  North Ave, Jakarta<br />
+                  North Ave, Palembang<br />
                   +62 812 3456 789
                 </p>
               </div>
