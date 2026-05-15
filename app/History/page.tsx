@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { LuUser, LuCalendar, LuLoader, LuUpload, LuX, LuLogIn, LuMessageCircle } from "react-icons/lu";
+import { LuUser, LuCalendar, LuClock, LuLoader, LuUpload, LuX, LuLogIn, LuMessageCircle } from "react-icons/lu";
 import { getBookingHistory, submitPaymentProof, cancelBooking } from "@/app/actions/booking";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
@@ -90,8 +90,11 @@ export default function HistoryPage() {
     if (booking.status === "pending_confirmation") {
       return { text: "PENDING", colorClass: "text-yellow-500", borderClass: "border-yellow-500/50" };
     }
-    if (booking.status === "confirmed" || booking.status === "completed") {
+    if (booking.status === "confirmed") {
       return { text: "CONFIRMED", colorClass: "text-green-500", borderClass: "border-green-500/50" };
+    }
+    if (booking.status === "completed") {
+      return { text: "SELESAI", colorClass: "text-emerald-400", borderClass: "border-emerald-500/50" };
     }
     return { text: "UNKNOWN", colorClass: "text-zinc-500", borderClass: "border-zinc-800" };
   };
@@ -227,9 +230,15 @@ export default function HistoryPage() {
 
                     {/* Card Footer */}
                     <div className="flex justify-between items-center mb-4">
-                      <div className="flex items-center gap-2 text-zinc-400 text-xs">
-                        <LuCalendar size={14} className="text-zinc-500" />
-                        <span>{format(new Date(booking.booking_date), "MMM dd, yyyy")}</span>
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center gap-2 text-zinc-400 text-xs">
+                          <LuCalendar size={14} className="text-zinc-500" />
+                          <span>{format(new Date(booking.booking_date), "MMM dd, yyyy")}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-zinc-400 text-xs">
+                          <LuClock size={14} className="text-zinc-500" />
+                          <span>{booking.booking_time} WIB</span>
+                        </div>
                       </div>
                       <div className={`px-4 py-1.5 bg-zinc-900/50 border rounded-md flex items-center gap-2 ${badge.borderClass}`}>
                         <span className={`text-[10px] font-bold tracking-widest ${badge.colorClass}`}>

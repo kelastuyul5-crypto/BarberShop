@@ -112,7 +112,7 @@ export default function JournalPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="aspect-[3/4] bg-zinc-900 border border-[#C5A059]/20 flex items-center justify-center overflow-hidden relative">
-               <img src="https://images.unsplash.com/photo-1590540179852-2110a54f813a?auto=format&fit=crop&q=80" className="w-full h-full object-cover opacity-30" />
+               <img src="/images/atelier-story-1.png" className="w-full h-full object-cover opacity-50 hover:opacity-80 transition-opacity duration-500" alt="Atelier Story Image 1" />
             </div>
             <div className="aspect-[3/4] bg-zinc-900 border border-[#C5A059]/20 flex items-center justify-center overflow-hidden translate-y-8 relative">
                <img src="/images/atelier-story-2.png" className="w-full h-full object-cover opacity-50 hover:opacity-80 transition-opacity duration-500" alt="Atelier Story Image 2" />

@@ -7,7 +7,7 @@ import { DayPicker } from "react-day-picker";
 import { format, addDays, startOfToday } from "date-fns";
 import { id } from "date-fns/locale";
 import "react-day-picker/dist/style.css";
-import { getBarbers, getServices, checkAvailability, createBookingHold, checkUserActiveBooking, submitPaymentProof, getClosedDates, getAbsentBarbers } from "@/app/actions/booking";
+import { getBarbers, getServices, checkAvailability, createBookingHold, checkUserActiveBooking, submitPaymentProof, getClosedDates, getAbsentBarbers, getServicesForBarber } from "@/app/actions/booking";
 import Link from "next/link";
 import { supabase } from "@/utils/supabase";
 
@@ -15,6 +15,7 @@ export default function RitualsPage() {
   const [barbers, setBarbers] = useState<any[]>([]);
   const [servicesList, setServicesList] = useState<any[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(true);
+  const [isLoadingServices, setIsLoadingServices] = useState(false);
 
   const [selectedBarber, setSelectedBarber] = useState<any | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -47,21 +48,20 @@ export default function RitualsPage() {
       const uid = session?.user?.id || null;
       setUserId(uid);
 
-      const fetchList: [Promise<any>, Promise<any>, Promise<any>, Promise<any>?] = [
+      const fetchList: [Promise<any>, Promise<any>, Promise<any>?] = [
         getBarbers(),
-        getServices(),
         getClosedDates(),
       ];
       if (uid) fetchList.push(checkUserActiveBooking(uid));
 
       const results = await Promise.all(fetchList);
       setBarbers(results[0]);
-      setServicesList(results[1]);
+      // services tidak di-fetch global lagi; akan di-fetch saat barber dipilih
       
-      const parsedClosedDates = (results[2] || []).map((dStr: string) => new Date(dStr));
+      const parsedClosedDates = (results[1] || []).map((dStr: string) => new Date(dStr));
       setClosedDates(parsedClosedDates);
       
-      if (uid && results[3]) setHasActiveBooking(results[3].hasActive);
+      if (uid && results[2]) setHasActiveBooking(results[2].hasActive);
       setIsLoadingData(false);
     }
     loadData();
@@ -73,7 +73,7 @@ export default function RitualsPage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch availability and absences when date or barber changes
+  // Fetch availability, absences, AND services saat date atau barber berubah
   useEffect(() => {
     async function loadAvailability() {
       if (selectedDate) {
@@ -86,6 +86,8 @@ export default function RitualsPage() {
         // If selected barber is absent, deselect them
         if (selectedBarber && absences.includes(selectedBarber.id)) {
           setSelectedBarber(null);
+          setServicesList([]);
+          setSelectedServices([]);
           setBookedTimes([]);
           setSelectedTime(null);
           return;
@@ -93,7 +95,9 @@ export default function RitualsPage() {
 
         if (selectedBarber) {
           setIsCheckingTime(true);
-          const times = await checkAvailability(dateStr, selectedBarber.id);
+          const [times] = await Promise.all([
+            checkAvailability(dateStr, selectedBarber.id),
+          ]);
           setBookedTimes(times);
           setIsCheckingTime(false);
           // If selected time is now booked, clear it
@@ -110,6 +114,24 @@ export default function RitualsPage() {
     }
     loadAvailability();
   }, [selectedDate, selectedBarber]);
+
+  // Fetch services untuk barber yang dipilih
+  useEffect(() => {
+    async function loadServices() {
+      if (!selectedBarber) {
+        setServicesList([]);
+        setSelectedServices([]);
+        return;
+      }
+      setIsLoadingServices(true);
+      const svcs = await getServicesForBarber(selectedBarber.id);
+      setServicesList(svcs);
+      // Clear services yang tidak ada di barber baru
+      setSelectedServices(prev => prev.filter(s => svcs.some((sv: any) => sv.id === s.id)));
+      setIsLoadingServices(false);
+    }
+    loadServices();
+  }, [selectedBarber]);
 
   // Countdown Timer Effect
   useEffect(() => {
@@ -426,16 +448,27 @@ export default function RitualsPage() {
 
             {/* Services */}
             <section className="px-6 md:px-0 pb-6">
-              <h2 className="text-2xl font-serif text-white mb-6">Services</h2>
+              <h2 className="text-2xl font-serif text-white mb-6 flex items-center gap-2">
+                Services
+                {isLoadingServices && <LuLoader className="w-4 h-4 text-[#C5A059] animate-spin" />}
+              </h2>
               <div>
                 <h3 className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] uppercase mb-3">PILIH LAYANAN</h3>
-                <div className="flex flex-wrap gap-3">
-                  {servicesList.map(service => (
-                    <button key={service.id} onClick={() => toggleService(service)} className={serviceClass(service.id)}>
-                      {service.name} (Rp {service.price.toLocaleString('id-ID')})
-                    </button>
-                  ))}
-                </div>
+                {!selectedBarber ? (
+                  <p className="text-zinc-600 text-sm">Pilih barber terlebih dahulu untuk melihat layanan yang tersedia.</p>
+                ) : isLoadingServices ? (
+                  <p className="text-zinc-600 text-sm">Memuat layanan...</p>
+                ) : servicesList.length === 0 ? (
+                  <p className="text-zinc-600 text-sm">Barber ini belum memiliki layanan yang ditetapkan.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-3">
+                    {servicesList.map(service => (
+                      <button key={service.id} onClick={() => toggleService(service)} className={serviceClass(service.id)}>
+                        {service.name} (Rp {service.price.toLocaleString('id-ID')})
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </section>
           </div>

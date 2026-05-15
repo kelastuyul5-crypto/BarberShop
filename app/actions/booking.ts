@@ -30,6 +30,12 @@ export async function getServices() {
   return bookingService.getServices();
 }
 
+/** Ambil services yang tersedia untuk barber tertentu (berdasarkan barber_services table). */
+export async function getServicesForBarber(barberId: string) {
+  const bookingService = new BookingService(supabase);
+  return bookingService.getServicesForBarber(barberId);
+}
+
 export async function checkAvailability(date: string, barberId: string) {
   const bookingService = new BookingService(supabase);
   // Signature dibalik agar sesuai OOP method (barberId, date)

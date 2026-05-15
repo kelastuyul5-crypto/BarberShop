@@ -114,6 +114,35 @@ export async function deleteService(id: string) {
   return result;
 }
 
+// ─── BARBER SERVICES ASSIGNMENT ─────────────────────────────
+
+export async function getBarberServices(barberId: string) {
+  const bookingService = new BookingService(supabase);
+  return bookingService.getBarberServices(barberId);
+}
+
+export async function getAllBarberServices() {
+  const bookingService = new BookingService(supabase);
+  return bookingService.getAllBarberServices();
+}
+
+export async function toggleBarberService(
+  barberId: string,
+  serviceId: string,
+  isCurrentlyAssigned: boolean
+) {
+  if (!(await checkAdmin())) return { success: false, error: "Unauthorized" };
+
+  const bookingService = new BookingService(supabaseAdmin);
+  const result = await bookingService.toggleBarberService(barberId, serviceId, isCurrentlyAssigned);
+
+  if (result.success) {
+    revalidatePath("/admin");
+    revalidatePath("/Rituals");
+  }
+  return result;
+}
+
 // ─── BOOKINGS ───────────────────────────────────────────────
 
 export async function getAllBookings(page: number = 1, limit: number = 10) {

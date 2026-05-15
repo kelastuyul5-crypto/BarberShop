@@ -735,6 +735,124 @@ export class BookingService {
   }
 
   // ──────────────────────────────────────────────────────────
+  // SECTION: Admin — Barber ↔ Service Assignment
+  // ──────────────────────────────────────────────────────────
+
+  /**
+   * Mengambil daftar service_id yang di-assign ke satu barber.
+   * @param barberId - UUID barber
+   */
+  async getBarberServices(barberId: string): Promise<string[]> {
+    const { data, error } = await this.db
+      .from("barber_services")
+      .select("service_id")
+      .eq("barber_id", barberId);
+
+    if (error) {
+      console.error("[BookingService] Error fetching barber services:", error);
+      return [];
+    }
+    return data.map((row) => row.service_id);
+  }
+
+  /**
+   * Mengambil seluruh data penugasan barber-service.
+   * Digunakan untuk efisiensi loading di dashboard admin.
+   */
+  async getAllBarberServices(): Promise<{ barber_id: string; service_id: string }[]> {
+    const { data, error } = await this.db
+      .from("barber_services")
+      .select("barber_id, service_id");
+
+    if (error) {
+      console.error("[BookingService] Error fetching all barber services:", error);
+      return [];
+    }
+    return data;
+  }
+
+  /**
+   * Mengganti seluruh service assignment untuk satu barber.
+   * Melakukan delete-then-insert (replace all).
+   * @param barberId   - UUID barber
+   * @param serviceIds - Array UUID service yang akan di-assign
+   */
+  async setBarberServices(
+    barberId: string,
+    serviceIds: string[]
+  ): Promise<ActionResult> {
+    // Hapus semua assignment lama untuk barber ini
+    const { error: deleteError } = await this.db
+      .from("barber_services")
+      .delete()
+      .eq("barber_id", barberId);
+
+    if (deleteError) {
+      console.error("[BookingService] Error clearing barber services:", deleteError);
+      return { success: false, error: deleteError.message };
+    }
+
+    // Jika tidak ada service yang dipilih, selesai
+    if (serviceIds.length === 0) return { success: true };
+
+    // Insert assignment baru
+    const rows = serviceIds.map((service_id) => ({ barber_id: barberId, service_id }));
+    const { error: insertError } = await this.db
+      .from("barber_services")
+      .insert(rows);
+
+    if (insertError) {
+      console.error("[BookingService] Error inserting barber services:", insertError);
+      return { success: false, error: insertError.message };
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * Toggle single service assignment untuk barber (assign / unassign).
+   * Lebih efisien daripada setBarberServices untuk toggle satu item.
+   */
+  async toggleBarberService(
+    barberId: string,
+    serviceId: string,
+    isCurrentlyAssigned: boolean
+  ): Promise<ActionResult> {
+    if (isCurrentlyAssigned) {
+      const { error } = await this.db
+        .from("barber_services")
+        .delete()
+        .match({ barber_id: barberId, service_id: serviceId });
+      if (error) return { success: false, error: error.message };
+    } else {
+      const { error } = await this.db
+        .from("barber_services")
+        .insert({ barber_id: barberId, service_id: serviceId });
+      if (error && error.code !== "23505")
+        return { success: false, error: error.message };
+    }
+    return { success: true };
+  }
+
+  /**
+   * Mengambil daftar layanan (objek Service lengkap) yang tersedia untuk barber tertentu.
+   * Digunakan oleh halaman booking publik.
+   * @param barberId - UUID barber
+   */
+  async getServicesForBarber(barberId: string): Promise<Service[]> {
+    const { data, error } = await this.db
+      .from("barber_services")
+      .select("service:services(*)")
+      .eq("barber_id", barberId);
+
+    if (error) {
+      console.error("[BookingService] Error fetching services for barber:", error);
+      return [];
+    }
+    return (data || []).map((row: any) => row.service as Service);
+  }
+
+  // ──────────────────────────────────────────────────────────
   // SECTION: Admin — Shop Settings
   // ──────────────────────────────────────────────────────────
 

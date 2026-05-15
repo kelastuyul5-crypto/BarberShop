@@ -10,7 +10,8 @@ import {
   getAllBookings, updateBookingStatus,
   getShopSettings, addClosedDate, deleteClosedDate,
   getBarberSchedule, blockBarberSlot, unblockBarberSlot,
-  getBarberAbsences, toggleBarberAbsence, rescheduleBooking
+  getBarberAbsences, toggleBarberAbsence, rescheduleBooking,
+  getBarberServices, toggleBarberService, getAllBarberServices
 } from "@/app/actions/admin";
 import { checkAvailability } from "@/app/actions/booking";
 import { format, addDays, startOfToday, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isBefore, isAfter, isSameDay, isSameMonth } from "date-fns";
@@ -356,12 +357,44 @@ function BarbersTab() {
 // ─── SERVICES TAB ───────────────────────────────────────────
 function ServicesTab() {
   const [services, setServices] = useState<any[]>([]);
+  const [barbers, setBarbers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ name: "", price: "", description: "" });
 
-  const load = async () => { setLoading(true); setServices(await getAllServices()); setLoading(false); };
+  // Accordion: which service is expanded
+  const [expandedServiceId, setExpandedServiceId] = useState<string | null>(null);
+  // Map: serviceId -> barber assignment loading state
+  const [assignmentLoading, setAssignmentLoading] = useState<Record<string, boolean>>({});
+  // Map: serviceId -> array of assigned barber_ids
+  const [assignments, setAssignments] = useState<Record<string, string[]>>({});
+
+  const load = async () => {
+    setLoading(true);
+    const [svcs, brbs, allAssignments] = await Promise.all([
+      getAllServices(), 
+      getAllBarbers(),
+      getAllBarberServices()
+    ]);
+    
+    setServices(svcs);
+    setBarbers(brbs);
+
+    // Grouping assignments by service_id
+    const grouped: Record<string, string[]> = {};
+    // Inisialisasi semua service dengan array kosong agar badge muncul (0 barber)
+    svcs.forEach(s => grouped[s.id] = []);
+    // Isi dengan data dari database
+    allAssignments.forEach(item => {
+      if (grouped[item.service_id]) {
+        grouped[item.service_id].push(item.barber_id);
+      }
+    });
+    setAssignments(grouped);
+
+    setLoading(false);
+  };
   useEffect(() => { load(); }, []);
 
   const openCreate = () => { setEditing(null); setForm({ name: "", price: "", description: "" }); setModal(true); };
@@ -374,33 +407,120 @@ function ServicesTab() {
     setModal(false); load();
   };
 
-  const handleDelete = async (id: string) => { if (confirm("Hapus service ini?")) { await deleteService(id); load(); } };
+  const handleDelete = async (id: string) => {
+    if (confirm("Hapus service ini?")) {
+      await deleteService(id);
+      if (expandedServiceId === id) setExpandedServiceId(null);
+      load();
+    }
+  };
+
+  // Expand accordion: assignment data is now pre-loaded in 'load'
+  const handleExpand = async (serviceId: string) => {
+    if (expandedServiceId === serviceId) { setExpandedServiceId(null); return; }
+    setExpandedServiceId(serviceId);
+  };
+
+  // Toggle barber assignment for a service
+  const handleToggleBarber = async (serviceId: string, barberId: string) => {
+    const current = assignments[serviceId] || [];
+    const isAssigned = current.includes(barberId);
+
+    // Optimistic update
+    setAssignments(prev => ({
+      ...prev,
+      [serviceId]: isAssigned ? current.filter(id => id !== barberId) : [...current, barberId]
+    }));
+
+    // toggleBarberService(barberId, serviceId, isCurrentlyAssigned)
+    await toggleBarberService(barberId, serviceId, isAssigned);
+  };
 
   if (loading) return <div className="flex justify-center py-20"><LuLoader className="w-8 h-8 text-[#C5A059] animate-spin" /></div>;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-2">
         <h2 className="text-2xl font-serif text-white">Services</h2>
         <button onClick={openCreate} className="flex items-center gap-2 bg-[#E5C158] text-black px-4 py-2.5 rounded-lg text-xs font-bold tracking-wider hover:bg-[#C5A059] transition-colors">
           <LuPlus size={16} /> TAMBAH
         </button>
       </div>
+      <p className="text-zinc-600 text-[11px] mb-6">Klik service untuk mengatur barber mana yang bisa melakukan layanan tersebut.</p>
+
       <div className="space-y-3">
         {services.map(s => (
-          <div key={s.id} className="bg-[#141414] border border-zinc-900 rounded-xl p-4 flex items-center gap-4">
-            <div className="flex-1 min-w-0">
-              <p className="text-white font-medium text-sm">{s.name}</p>
-              <p className="text-zinc-500 text-xs mt-0.5">{s.description || "Tidak ada deskripsi"}</p>
+          <div key={s.id} className="flex flex-col gap-0">
+            {/* Service Card */}
+            <div
+              onClick={() => handleExpand(s.id)}
+              className={`bg-[#141414] border rounded-xl p-4 flex items-center gap-4 cursor-pointer transition-all hover:border-zinc-700
+                ${expandedServiceId === s.id
+                  ? "border-[#C5A059]/40 ring-1 ring-[#C5A059]/10 rounded-b-none"
+                  : "border-zinc-900"}`}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-white font-medium text-sm">{s.name}</p>
+                  {/* Show count of assigned barbers */}
+                  {assignments[s.id] !== undefined && (
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wider
+                      ${assignments[s.id].length > 0 ? "bg-[#C5A059]/20 text-[#C5A059]" : "bg-zinc-800 text-zinc-500"}`}>
+                      {assignments[s.id].length} BARBER
+                    </span>
+                  )}
+                </div>
+                <p className="text-zinc-500 text-xs mt-0.5">{s.description || "Tidak ada deskripsi"}</p>
+              </div>
+              <p className="text-[#E5C158] font-bold text-sm shrink-0">Rp {s.price.toLocaleString("id-ID")}</p>
+              <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                <button onClick={() => openEdit(s)} className="p-2 text-zinc-500 hover:text-[#C5A059] transition-colors"><LuPencil size={16} /></button>
+                <button onClick={() => handleDelete(s.id)} className="p-2 text-zinc-500 hover:text-red-400 transition-colors"><LuTrash2 size={16} /></button>
+              </div>
+              <span className={`text-zinc-600 transition-transform duration-200 ${expandedServiceId === s.id ? 'rotate-90' : ''}`}>›</span>
             </div>
-            <p className="text-[#E5C158] font-bold text-sm shrink-0">Rp {s.price.toLocaleString("id-ID")}</p>
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={() => openEdit(s)} className="p-2 text-zinc-500 hover:text-[#C5A059] transition-colors"><LuPencil size={16} /></button>
-              <button onClick={() => handleDelete(s.id)} className="p-2 text-zinc-500 hover:text-red-400 transition-colors"><LuTrash2 size={16} /></button>
-            </div>
+
+            {/* Accordion: Barber Assignment */}
+            {expandedServiceId === s.id && (
+              <div className="bg-[#0F0F0F] border border-t-0 border-[#C5A059]/40 rounded-b-xl px-5 py-4">
+                <p className="text-zinc-500 text-[10px] font-bold tracking-[0.2em] uppercase mb-3">Barber yang Bisa Melakukan Layanan Ini</p>
+                {assignmentLoading[s.id] ? (
+                  <div className="flex justify-center py-4">
+                    <LuLoader className="w-5 h-5 text-[#C5A059] animate-spin" />
+                  </div>
+                ) : barbers.length === 0 ? (
+                  <p className="text-zinc-600 text-xs">Belum ada barber terdaftar.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {barbers.map(b => {
+                      const isAssigned = (assignments[s.id] || []).includes(b.id);
+                      return (
+                        <button
+                          key={b.id}
+                          onClick={() => handleToggleBarber(s.id, b.id)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold tracking-wide border transition-all duration-200
+                            ${isAssigned
+                              ? "bg-[#C5A059]/20 border-[#C5A059]/60 text-[#E5C158] shadow-sm shadow-[#C5A059]/10"
+                              : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300"}`}
+                        >
+                          {/* Mini avatar */}
+                          <div className={`w-5 h-5 rounded-full overflow-hidden bg-zinc-700 shrink-0 ring-1
+                            ${isAssigned ? "ring-[#C5A059]/60" : "ring-zinc-700"}`}>
+                            {b.image_url && <img src={b.image_url} alt={b.name} className="w-full h-full object-cover" />}
+                          </div>
+                          {b.name}
+                          {isAssigned && <LuCheck size={12} className="text-[#E5C158]" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
       </div>
+
       <Modal open={modal} onClose={() => setModal(false)} title={editing ? "Edit Service" : "Tambah Service"}>
         <div className="space-y-4">
           <Field label="Nama Layanan" value={form.name} onChange={v => setForm(p => ({ ...p, name: v }))} placeholder="e.g. Haircut" />
